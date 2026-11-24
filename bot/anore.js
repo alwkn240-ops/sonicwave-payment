@@ -1,6 +1,6 @@
 /* ==================== anore.cc интеграция ==================== */
 
-const ANORE_API = 'https://api.anore.cc';
+const ANORE_API = 'https://api.anore.cc/v1';
 
 /* создаёт платёж в anore.cc и возвращает { id, status, confirmation_url } или null при ошибке */
 async function createAnorePayment({ amount, currency = 'RUB', description, orderId, successUrl, failUrl, callbackUrl, methods = ['sbp', 'card'] }) {
@@ -15,7 +15,6 @@ async function createAnorePayment({ amount, currency = 'RUB', description, order
     currency,
     description,
     orderId,
-    return_url: successUrl,
     successurl: successUrl,
     failurl: failUrl,
     callbackUrl: callbackUrl,
@@ -23,7 +22,7 @@ async function createAnorePayment({ amount, currency = 'RUB', description, order
   };
 
   try {
-    const resp = await fetch(`${ANORE_API}/v1/payments`, {
+    const resp = await fetch(`${ANORE_API}/payments`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

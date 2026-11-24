@@ -5,40 +5,57 @@ const crypto = require('node:crypto');
 const store = require('./store');
 const config = require('./config');
 
-/* ---------- проверка подписи (заполнить по доке anore.cc) ---------- */
+/* ---------- проверка подписи (по доке anore.cc: Anore-Signature = HMAC-SHA256) ---------- */
 function verifySignature(rawBody, headers) {
   const secret = process.env.ANORE_WEBHOOK_SECRET;
   if (!secret) return true; // если секрет не задан — не проверяем (только для теста)
 
-  const signature = headers['x-anore-signature'] || headers['x-signature'] || '';
+  /* по доке заголовок: Anore-Signature — hex(HMAC-SHA256(raw_body, SECRET)) */
+  const signature = headers['anore-signature'] || '';
   if (!signature) return false;
 
   const hmac = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(signature));
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(signature));
+  } catch (e) {
+    return false;
+  }
+}
+
+function safeGetPayment(id) {
+  try {
+    return store.getPayment(id);
+  } catch (e) {
+    return null;
+  }
 }
 
 /* ---------- обработка события ---------- */
 function handleEvent(event) {
-  const paymentId = event?.orderId || event?.id || event?.payment_id;
-  const anoreStatus = event?.status || event?.payment_status;
+  /* по доке события бывают: payment.succeeded / payment.expired
+     внутри event.data лежит объект платежа с orderId и status */
+  const data = event?.data || event;
+  const paymentId = data?.orderId || data?.id || data?.payment_id;
+  const anoreEvent = event?.event || event?.type || '';
+  const anoreStatus = data?.status || event?.payment_status;
 
-  if (!paymentId || !anoreStatus) {
-    console.warn('[Webhook] невалидное событие:', JSON.stringify(event));
+  if (!paymentId) {
+    console.warn('[Webhook] невалидное событие:', JSON.stringify(event).slice(0, 300));
     return;
   }
 
-  const payment = store.getPayment(paymentId);
+  const payment = safeGetPayment(paymentId);
   if (!payment) {
     console.warn(`[Webhook] платёж ${paymentId} не найден`);
     return;
   }
 
-  if (anoreStatus === 'success' || anoreStatus === 'paid' || anoreStatus === 'completed') {
+  if (anoreEvent === 'payment.succeeded' || anoreStatus === 'success' || anoreStatus === 'paid' || anoreStatus === 'completed') {
     store.setStatus(paymentId, 'paid', { paidAt: Date.now() });
-    console.log(`[Webhook] платёж ${paymentId} оплачен (${anoreStatus})`);
-  } else if (anoreStatus === 'failed' || anoreStatus === 'expired' || anoreStatus === 'cancelled') {
+    console.log(`[Webhook] платёж ${paymentId} оплачен (${anoreEvent || anoreStatus})`);
+  } else if (anoreEvent === 'payment.expired' || anoreStatus === 'failed' || anoreStatus === 'expired' || anoreStatus === 'cancelled') {
     store.setStatus(paymentId, 'expired');
-    console.log(`[Webhook] платёж ${paymentId} истёк/отменён (${anoreStatus})`);
+    console.log(`[Webhook] платёж ${paymentId} истёк/отменён (${anoreEvent || anoreStatus})`);
   }
 }
 

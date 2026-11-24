@@ -1,15 +1,16 @@
 # SonicWave — страница оплаты
 
-Одностраничная оплата (карта / крипта / QR СБП) + Discord-бот, генерирующий ссылки на оплату.
+Одностраничная оплата (карта / QR СБП через anore.cc) + Discord-бот, генерирующий ссылки на оплату.
 
 **Сайт:** https://alwkn240-ops.github.io/sonicwave-payment/
 
 ## Как это работает
 
 1. Админ вызывает `/newplatega` (нужны права администратора на сервере).
-2. Бот создаёт счёт (15 минут) и выдаёт ссылку вида:
-   `index.html?id=AB12CD34&item=...&desc=...&price=500&to=КАРТА&crypto=КОШЕЛЕК&exp=1730000000000`
-3. Покупатель открывает ссылку, платит, жмёт «Я оплатил» и отправляет чек в Discord.
+2. Бот создаёт счёт (15 минут) и выдаёт короткую ссылку вида
+   `домен/pay/AB12CD34?item=...&price=500&exp=...` — **без index.html**.
+3. Покупатель жмёт «Оплатить картой» / «Оплатить через СБП» → открывается форма anore.cc.
+   После оплаты anore шлёт вебхук — счёт автоматически помечается оплаченным.
 4. Таймер привязан к `exp` (epoch ms) — при перезагрузке страницы **не сбрасывается**.
    Если `exp` нет (открыли без бота) — дедлайн хранится в `localStorage`.
 
@@ -18,9 +19,20 @@
 ```bash
 cd bot
 npm install
-copy .env.example .env   # и вписать DISCORD_TOKEN + PAY_BASE_URL
-node index.js
+copy .env.example .env   # DISCORD_TOKEN, PAY_BASE_URL, ANORE_SECRET_KEY,
+                         # ANORE_WEBHOOK_SECRET, WEBHOOK_PUBLIC_URL
+node index.js            # бот
+node webhook.js          # вебхук-сервер (порт 3333)
 ```
+
+## anore.cc (карта + СБП)
+
+1. Зарегистрируйся на anore.cc, создай кассу и API-ключ (`an_test_…` — тест, `an_live_…` — бой).
+2. Впиши `ANORE_SECRET_KEY` в `bot/.env`.
+3. Кабинет anore → Вебхуки: URL `https://твой-домен/webhook/anore` (или `WEBHOOK_PUBLIC_URL`),
+   SECRET скопируй в `ANORE_WEBHOOK_SECRET`.
+4. `/newplatega` сам создаёт платёж: кнопки на странице открывают форму anore,
+   после оплаты статус обновится автоматически через вебхук.
 
 ## Своё имя (домен)
 
