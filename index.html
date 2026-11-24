@@ -393,13 +393,18 @@ document.getElementById('itemDesc').textContent  = PAY.desc;
 /* цена с плавным count-up */
 (function(){
   const el = document.getElementById('priceVal');
-  const t0 = performance.now(), dur = 900, target = PAY.price;
+  const dur = 900, target = PAY.price;
+  let t0 = null;
   function tick(now){
+    if(t0===null) t0 = now;
     const p = Math.min(1,(now-t0)/dur), e = 1-Math.pow(1-p,3);
     el.innerHTML = Math.round(target*e).toLocaleString('ru-RU')+' <small>₽</small>';
     if(p<1) requestAnimationFrame(tick);
+    else el.innerHTML = target.toLocaleString('ru-RU')+' <small>₽</small>';
   }
+  // запускаем всегда; если rAF не сработал (фоновая вкладка) — сразу ставим финальное значение
   requestAnimationFrame(tick);
+  setTimeout(()=>{ el.innerHTML = target.toLocaleString('ru-RU')+' <small>₽</small>'; }, 1100);
 })();
 
 function toast(msg){
