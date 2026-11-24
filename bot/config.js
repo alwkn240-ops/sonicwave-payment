@@ -16,7 +16,6 @@ const config = {
   // реквизиты по умолчанию (можно передавать опцией команды)
   requisites: {
     card: '2202 2061 1234 5678',
-    crypto: 'TQn9Y2khDD95J42FQtQTdwVVRZq7NmH5cG'
   },
   discordInvite: 'https://discord.gg/mK95j8FaZg'
 };

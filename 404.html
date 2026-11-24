@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SonicWave — Оплата</title>
+<!--
+  GitHub Pages не умеет серверный роутинг, поэтому /pay/<TOKEN>
+  попадает сюда. Мы редиректим на index.html?pay=<TOKEN>, сохраняя
+  Short-URL без index.html в адресной строке.
+-->
+<script>
+(function(){
+  var m = location.pathname.match(/^\/pay\/([A-Za-z0-9_-]+)/);
+  if (m) {
+    var token = m[1];
+    var qs = location.search || '';
+    var sep = qs ? '&' : '?';
+    location.replace('/index.html?pay=' + encodeURIComponent(token) + sep + qs.slice(1));
+  } else {
+    location.replace('/index.html');
+  }
+})();
+</script>
+</head>
+<body>
+Переадресация на страницу оплаты…
+</body>
+</html>

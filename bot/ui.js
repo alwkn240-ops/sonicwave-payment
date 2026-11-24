@@ -80,7 +80,7 @@ function buildPaymentComponents(payment, url) {
       txt(
         [
           `Истекает: ${discordTime(payment.expiresAt)}`,
-          '-# Оплата картой, криптой или QR СБП на странице оплаты.'
+          '-# Оплата картой или QR СБП на странице оплаты.'
         ].join('\n')
       )
     );

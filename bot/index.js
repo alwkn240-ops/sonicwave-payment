@@ -10,6 +10,7 @@ const {
 const config = require('./config');
 const store = require('./store');
 const ui = require('./ui');
+const { createAnorePayment } = require('./anore');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
@@ -30,12 +31,6 @@ const newPlategaCommand = new SlashCommandBuilder()
   )
   .addIntegerOption((option) =>
     option.setName('цена').setDescription('Цена в рублях').setRequired(true).setMinValue(1).setMaxValue(1000000)
-  )
-  .addStringOption((option) =>
-    option.setName('карта').setDescription('Реквизиты карты/СБП (необязательно)').setMaxLength(64)
-  )
-  .addStringOption((option) =>
-    option.setName('крипта').setDescription('Адрес криптокошелька (необязательно)').setMaxLength(128)
   );
 
 async function registerCommands() {
@@ -61,10 +56,29 @@ function payUrl(payment) {
     desc: payment.desc,
     price: String(payment.price),
     to: payment.card,
-    crypto: payment.crypto,
     exp: String(payment.expiresAt)
   });
   return `${config.payBaseUrl}?${params.toString()}`;
+}
+
+function siteUrl(payment) {
+  return payUrl(payment); // deprecated, kept for compatibility
+}
+
+function shortUrl(payment) {
+  // формат /pay/<ID>?... — без index.html
+  const base = config.payBaseUrl.replace(/\/+$/, '').replace(/\/index\.html$/, '');
+  const params = new URLSearchParams({
+    item: payment.item,
+    desc: payment.desc,
+    price: String(payment.price),
+    to: payment.card,
+    exp: String(payment.expiresAt)
+  });
+  if (payment.anoreUrl) {
+    params.set('anoreUrl', payment.anoreUrl);
+  }
+  return `${base}/pay/${payment.id}?${params.toString()}`;
 }
 
 client.once(Events.ClientReady, async () => {
@@ -90,14 +104,39 @@ client.on(Events.InteractionCreate, async (interaction) => {
         item: interaction.options.getString('товар'),
         desc: interaction.options.getString('описание'),
         price: interaction.options.getInteger('цена'),
-        card: interaction.options.getString('карта') || undefined,
-        crypto: interaction.options.getString('крипта') || undefined,
+        card: config.requisites.card,
         createdBy: interaction.user.id
       });
 
-      const url = payUrl(payment);
+      /* если задан ключ anore — создаём платёж на их стороне (карта + СБП) */
+      let anoreUrl = null;
+      if (process.env.ANORE_SECRET_KEY) {
+        const anore = await createAnorePayment({
+          amount: payment.price,
+          currency: 'RUB',
+          description: payment.item,
+          orderId: payment.id,
+          successUrl: siteUrl(payment),
+          failUrl: siteUrl(payment),
+          callbackUrl: (process.env.WEBHOOK_PUBLIC_URL || '') + '/webhook/anore'
+        });
+        if (anore) {
+          anoreUrl = anore.confirmation_url;
+          payment.anoreUrl = anoreUrl;
+          store.setStatus(payment.id, 'awaiting_payment', {
+            anoreId: anore.id,
+            anoreStatus: anore.status,
+            anoreUrl
+          });
+        }
+      }
+
+      /* покупателю всегда даём короткую ссылку /pay/<ID>; 
+         кнопка на сайте сама уведёт на форму anore (если она есть) */
+      const url = shortUrl(payment);
+
       await interaction.editReply({
-        content: `Счёт **${payment.id}** создан. Ссылка для покупателя:\n${url}`
+        content: `Счёт **${payment.id}** создан${anoreUrl ? ' (оплата через anore.cc: карта/СБП)' : ''}.\nСсылка для покупателя:\n${url}`
       });
 
       // публичное сообщение со ссылкой

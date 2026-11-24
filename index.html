@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SonicWave — Оплата</title>
 <!--
-  Ссылку создаёт Discord-бот командой /newplatega (только для админов):
-  index.html?id=AB12CD34&item=...&desc=...&price=500&to=КАРТА&crypto=КОШЕЛЕК&exp=1730000000000
-  exp — epoch ms момента истечения таймера (поэтому при перезагрузке таймер и QR те же).
+  Ссылка в формате /pay/<ID>?... — без index.html в адресе.
+  Параметры: id, item, desc, price, to, exp, anoreUrl (опционально — прямая ссылка на форму anore.cc).
+  exp — epoch ms истечения таймера (перезагрузка не сбрасывает).
   Без параметров — тестовый товар за 500 ₽ на 15 минут.
 -->
 <style>
@@ -299,7 +299,6 @@ body{
 
           <div class="methods" id="methods">
             <button class="method active" data-method="card">Карта</button>
-            <button class="method" data-method="crypto">Крипта</button>
             <button class="method" data-method="qr">QR СБП</button>
           </div>
 
@@ -369,21 +368,23 @@ body{
 <script src="assets/qrcode.min.js"></script>
 <script>
 /* реквизиты по умолчанию — замените на реальные (бот может передать свои в ссылке) */
-const CONFIG = {
-  card:   '2202 2061 1234 5678',
-  crypto: 'TQn9Y2khDD95J42FQtQTdwVVRZq7NmH5cG'
-};
+  const CONFIG = {
+    card: '2202 2061 1234 5678'
+  };
 
 const qs = new URLSearchParams(location.search);
-const PAY = {
-  id:    qs.get('id')    || 'TEST',
-  item:  qs.get('item')  || 'SonicWave Client',
-  desc:  qs.get('desc')  || 'Полный доступ ко всем модулям клиента. Расширенный функционал, полный байпасс, стабильные 60 FPS.',
-  price: Math.max(1, parseInt(qs.get('price')||'500',10) || 500),
-  card:  qs.get('to')     || CONFIG.card,
-  crypto:qs.get('crypto') || CONFIG.crypto,
-  exp:   Number(qs.get('exp')) || (Date.now() + 15*60*1000)
-};
+  /* поддержка anoreUrl из URL — прямая ссылка на форму оплаты anore.cc */
+  const anoreUrlFromUrl = qs.get('anoreUrl');
+
+  const PAY = {
+    id:    qs.get('id')    || qs.get('pay') || 'TEST',
+    item:  qs.get('item')  || 'SonicWave Client',
+    desc:  qs.get('desc')  || 'Полный доступ ко всем модулям клиента. Расширенный функционал, полный байпасс, стабильные 60 FPS.',
+    price: Math.max(1, parseInt(qs.get('price')||'500',10) || 500),
+    card:  qs.get('to')     || CONFIG.card,
+    exp:   Number(qs.get('exp')) || (Date.now() + 15*60*1000),
+    anoreUrl: anoreUrlFromUrl || ''
+  };
 
 const $ = s => document.querySelector(s);
 document.getElementById('itemTitle').textContent = PAY.item;
@@ -415,17 +416,15 @@ async function copy(text,label){
 const state={method:'card',expired:false};
 
 function reqText(){
-  return state.method==='crypto' ? PAY.crypto : PAY.card;
+  // всегда карта/СБП — anoreUrl ведёт на форму оплаты
+  return PAY.card;
 }
 function amountText(){
-  return state.method==='crypto'
-    ? '≈ '+(PAY.price/90).toFixed(2)+' USDT (TRC-20)'
-    : PAY.price.toLocaleString('ru-RU')+' ₽';
+  return PAY.price.toLocaleString('ru-RU')+' ₽';
 }
 function qrPayload(){
-  return state.method==='crypto'
-    ? PAY.crypto
-    : 'SonicWave · '+PAY.item+' · '+PAY.price+' ₽ · карта '+PAY.card+' · счёт '+PAY.id;
+  // QR содержит описание заказа; оплата картой/СБП — через anoreUrl
+  return 'SonicWave · '+PAY.item+' · '+PAY.price+' ₽ · счёт '+PAY.id;
 }
 
 function renderReq(){
@@ -442,12 +441,29 @@ document.querySelectorAll('.method').forEach(el=>{
     state.method=el.dataset.method;
     document.querySelectorAll('.method').forEach(o=>o.classList.remove('active'));
     el.classList.add('active');
-    $('#qrHint').textContent = state.method==='crypto'
-      ? 'Отсканируйте кошельком (USDT TRC-20)'
-      : 'Отсканируйте QR для оплаты';
+    // обе кнопки (карта и QR СБП) открывают anore форму оплаты
+    if (PAY.anoreUrl) {
+      $('#qrHint').textContent = 'Нажмите на кнопку ниже для оплаты';
+      // сделаем кнопку "Я оплатил" ссылкой на anore
+      const btn = $('#paidBtn');
+      btn.textContent = state.method==='card' ? 'Оплатить картой' : 'Оплатить через СБП';
+      btn.onclick = () => window.open(PAY.anoreUrl, '_blank');
+    } else {
+      $('#qrHint').textContent = 'Отсканируйте QR для оплаты';
+      $('#paidBtn').textContent = 'Я оплатил';
+      $('#paidBtn').onclick = () => smoothShowView('paidView');
+    }
     renderReq();
   });
 });
+
+// по умолчанию — карта
+if (PAY.anoreUrl) {
+  $('#paidBtn').textContent = 'Оплатить картой';
+  $('#paidBtn').onclick = () => window.open(PAY.anoreUrl, '_blank');
+} else {
+  $('#paidBtn').onclick = () => smoothShowView('paidView');
+}
 
 $('#copyReq').addEventListener('click',()=>copy($('#reqAddr').value,'Реквизиты'));
 $('#copyAmount').addEventListener('click',()=>copy($('#reqAmount').value,'Сумма'));
@@ -516,7 +532,7 @@ function smoothShowView(name) {
   showView(name);
 }
 
-$('#paidBtn').addEventListener('click',()=>smoothShowView('paidView'));
+/* старый слушатель удалён — новые назначены через onclick выше */
 $('#backBtn1').addEventListener('click',()=>{ if(!state.expired) smoothShowView('payView'); else smoothShowView('expiredView'); });
 
 renderReq();

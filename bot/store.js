@@ -43,7 +43,6 @@ function createPayment({ item, desc, price, card, crypto, createdBy }) {
     desc: String(desc || '').slice(0, 300),
     price: Math.max(1, Math.floor(Number(price) || 500)),
     card: String(card || config.requisites.card).slice(0, 64),
-    crypto: String(crypto || config.requisites.crypto).slice(0, 128),
     status: 'awaiting_payment',
     createdAt: Date.now(),
     expiresAt: Date.now() + config.paymentTtlMs,
