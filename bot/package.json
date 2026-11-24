@@ -1,0 +1,14 @@
+{
+  "name": "sonicwave-platega-bot",
+  "version": "1.0.0",
+  "description": "SonicWave payment link generator bot (Components V2)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.28.1",
+    "dotenv": "^18.0.10"
+  }
+}
