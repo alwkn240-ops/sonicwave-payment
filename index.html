@@ -456,6 +456,21 @@ $('#copyAmount').addEventListener('click',()=>copy($('#reqAmount').value,'Сум
 const TOTAL = 15*60*1000;
 let lastLeft = -1;
 
+/* --- защита таймера от сброса при обновлении:---
+   1) exp из ссылки (ставит бот) — главный источник;
+   2) если exp нет (тестовый режим без бота) — сохраняем дедлайн в localStorage
+      и при перезагрузке продолжаем с него, а не начинаем заново. */
+const storageKey = 'sw_pay_deadline_' + PAY.id;
+if(!qs.get('exp')){
+  const saved = Number(localStorage.getItem(storageKey));
+  if(saved && saved > Date.now()){
+    PAY.exp = saved;                 // продолжаем прежний отсчёт
+  } else {
+    PAY.exp = Date.now() + TOTAL;    // первый заход — запоминаем дедлайн
+    try{ localStorage.setItem(storageKey, String(PAY.exp)); }catch(e){}
+  }
+}
+
 function fmt(ms){
   const s=Math.max(0,Math.ceil(ms/1000));
   return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
@@ -478,7 +493,7 @@ setInterval(()=>{
   if(!state.expired && PAY.exp - Date.now() <= 0) showExpired();
 },250);
 /* мгновенная проверка при загрузке (например, открыли просроченную ссылку) */
-if(PAY.exp - Date.now() <= 0) showExpired();
+if(PAY.exp - Date.now() <= 0){ state.expired=true; showView('expiredView'); }
 
 function showView(name){
   for(const id of ['payView','paidView','expiredView']){
